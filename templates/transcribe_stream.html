@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Transcripción Progresiva con Whisper</title>
+    <style>
+        body {
+            background: #181a1b;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+        }
+        .header-row {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 18px;
+            margin: 18px 0 0 18px;
+        }
+        h2 {
+            margin: 0 0 0.2em 0;
+            font-size: 1.3em;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .form-section {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type=file] {
+            background: #23272a;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 6px 4px;
+            width: 220px;
+            font-size: 0.98em;
+        }
+        button {
+            background: #222e50;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 18px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #1a2233;
+        }
+        .draggable {
+            position: absolute;
+            min-width: 180px;
+            min-height: 80px;
+            box-shadow: 0 2px 16px #0007;
+            border-radius: 8px;
+            background: #23272a;
+            border: 1.5px solid #333;
+            resize: both;
+            overflow: hidden;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+        }
+        .draggable-header {
+            cursor: move;
+            background: #181a1b;
+            border-bottom: 1px solid #333;
+            border-radius: 8px 8px 0 0;
+            padding: 6px 12px;
+            font-size: 1em;
+            font-weight: 500;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        #video-player {
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            min-width: 0;
+            background: #000;
+            border-radius: 0 0 8px 8px;
+            display: block;
+            flex: 1 1 0;
+            object-fit: contain;
+        }
+        #transcript {
+            background: #181a1b;
+            border-radius: 0 0 8px 8px;
+            padding: 10px 12px;
+            min-height: 0;
+            font-size: 1em;
+            white-space: pre-wrap;
+            flex: 1 1 0;
+            overflow: auto;
+            height: 100%;
+            box-sizing: border-box;
+        }
+        #transcript:empty::before {
+            content: 'La transcripción aparecerá aquí.';
+            color: #888;
+        }
+        @media (max-width: 600px) {
+            .header-row { flex-direction: column; gap: 6px; margin: 10px 0 0 10px; }
+            h2 { font-size: 1.1em; }
+            input[type=file] { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header-row">
+        <h2>Transcribir Video Local</h2>
+        <form id="upload-form" class="form-section">
+            <input type="file" id="video-file" name="file" accept="video/mp4,video/avi,video/mov,video/mkv" required />
+            <button type="submit">Transcribir</button>
+        </form>
+    </div>
+    <div id="video-draggable" class="draggable" style="top:80px;left:40px;width:380px;height:240px;">
+        <div class="draggable-header">Video</div>
+        <video id="video-player" controls tabindex="-1"></video>
+    </div>
+    <div id="transcript-draggable" class="draggable" style="top:80px;left:450px;width:380px;height:240px;">
+        <div class="draggable-header">Transcripción</div>
+        <div id="transcript"></div>
+    </div>
+    <script>
+        // Drag & drop para .draggable
+        function makeDraggable(el) {
+            const header = el.querySelector('.draggable-header');
+            let offsetX = 0, offsetY = 0, isDown = false;
+            header.onmousedown = function(e) {
+                isDown = true;
+                offsetX = e.clientX - el.offsetLeft;
+                offsetY = e.clientY - el.offsetTop;
+                document.body.style.userSelect = 'none';
+            };
+            document.addEventListener('mousemove', function(e) {
+                if (!isDown) return;
+                el.style.left = (e.clientX - offsetX) + 'px';
+                el.style.top = (e.clientY - offsetY) + 'px';
+            });
+            document.addEventListener('mouseup', function() {
+                isDown = false;
+                document.body.style.userSelect = '';
+            });
+        }
+        makeDraggable(document.getElementById('video-draggable'));
+        makeDraggable(document.getElementById('transcript-draggable'));
+
+        // Lógica de transcripción
+        const form = document.getElementById('upload-form');
+        const transcriptDiv = document.getElementById('transcript');
+        const fileInput = document.getElementById('video-file');
+        const videoPlayer = document.getElementById('video-player');
+
+        let transcriptSegments = [];
+        let transcriptDone = false;
+
+        fileInput.onchange = () => {
+            const file = fileInput.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                videoPlayer.style.display = 'block';
+                videoPlayer.load();
+                transcriptDiv.textContent = '';
+                transcriptSegments = [];
+                transcriptDone = false;
+            } else {
+                videoPlayer.style.display = 'none';
+                videoPlayer.src = '';
+            }
+        };
+
+        videoPlayer.ontimeupdate = () => {
+            if (transcriptSegments.length === 0) return;
+            const current = videoPlayer.currentTime;
+            let text = '';
+            for (const seg of transcriptSegments) {
+                if (current >= seg.start) {
+                    text += seg.full + '\n';
+                }
+            }
+            if (transcriptDone) text += '\n[Transcripción finalizada]';
+            transcriptDiv.textContent = text;
+        };
+
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            transcriptDiv.textContent = 'Procesando...';
+            transcriptSegments = [];
+            transcriptDone = false;
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            const response = await fetch('/process_local_stream', {
+                method: 'POST',
+                body: formData
+            });
+            transcriptDiv.textContent = '';
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                let lines = buffer.split('\n\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.segment) {
+                            const match = data.segment.match(/^\[(\d{2}):(\d{2}) - (\d{2}):(\d{2})\]/);
+                            let startSec = 0;
+                            if (match) {
+                                startSec = parseInt(match[1],10)*60 + parseInt(match[2],10);
+                            }
+                            transcriptSegments.push({ start: startSec, full: data.segment });
+                        }
+                        if (data.error) {
+                            transcriptDiv.textContent += '\n' + data.error;
+                        }
+                        if (data.done) {
+                            transcriptDone = true;
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+</body>
+</html>

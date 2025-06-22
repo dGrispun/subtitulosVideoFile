@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Transcripción de Video con Whisper</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; background: #181a1b; color: #e0e0e0; }
+        h2 { text-align: center; }
+        #transcript { background: #23272a; border: 1px solid #333; padding: 15px; min-height: 100px; margin-top: 20px; white-space: pre-wrap; }
+        input[type=file], button { margin-top: 10px; }
+        button { background: #222e50; color: #e0e0e0; border: none; padding: 10px 20px; cursor: pointer; }
+        button:hover { background: #1a2233; }
+    </style>
+</head>
+<body>
+    <h2>Transcribir Video Local con Whisper</h2>
+    <form id="upload-form">
+        <input type="file" id="video-file" name="file" accept="video/mp4,video/avi,video/mov,video/mkv" required />
+        <br>
+        <button type="submit">Transcribir</button>
+    </form>
+    <div id="transcript"></div>
+    <script>
+        const form = document.getElementById('upload-form');
+        const transcriptDiv = document.getElementById('transcript');
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            transcriptDiv.textContent = 'Procesando...';
+            const fileInput = document.getElementById('video-file');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            const res = await fetch('/process_local', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.transcript) {
+                transcriptDiv.textContent = data.transcript;
+            } else {
+                transcriptDiv.textContent = data.error || 'Error desconocido';
+            }
+        };
+    </script>
+</body>
+</html>
