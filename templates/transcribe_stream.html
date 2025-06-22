@@ -11,48 +11,81 @@
             margin: 0;
             min-height: 100vh;
         }
-        .header-row {
+        .tabs {
             display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            justify-content: flex-start;
-            gap: 18px;
-            margin: 18px 0 0 18px;
+            justify-content: center;
+            align-items: center;
+            background: #23272a;
+            border-bottom: 1.5px solid #333;
+            padding: 0 0 0 0;
+            margin-bottom: 0;
         }
-        h2 {
-            margin: 0 0 0.2em 0;
-            font-size: 1.3em;
-            letter-spacing: 0.5px;
-            font-weight: 600;
-            flex-shrink: 0;
+        .tab {
+            padding: 18px 36px 14px 36px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #b0b0b0;
+            background: none;
+            border: none;
+            outline: none;
+            transition: color 0.2s, border-bottom 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+        .tab.active {
+            color: #fff;
+            border-bottom: 3px solid #4f8cff;
+        }
+        .tab:hover {
+            color: #e0e0e0;
+        }
+        .tab-content {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            margin-top: 24px;
+        }
+        .tab-content.active {
+            display: block;
         }
         .form-section {
             display: flex;
             flex-direction: row;
-            align-items: center;
+            align-items: flex-start;
             gap: 10px;
+            background: #23272a;
+            padding: 24px 32px;
+            border-radius: 10px;
+            box-shadow: 0 2px 16px #0007;
+            margin-top: 16px;
+            margin-left: 0;
         }
-        input[type=file] {
+        input[type=file], input[type=text] {
             background: #23272a;
             color: #e0e0e0;
             border: 1px solid #444;
             border-radius: 4px;
-            padding: 6px 4px;
+            padding: 8px 6px;
+            font-size: 1em;
+        }
+        input[type=file] {
             width: 220px;
-            font-size: 0.98em;
+        }
+        input[type=text] {
+            width: 260px;
         }
         button {
-            background: #222e50;
-            color: #e0e0e0;
+            background: #4f8cff;
+            color: #fff;
             border: none;
             border-radius: 4px;
-            padding: 8px 18px;
+            padding: 10px 22px;
             font-size: 1em;
             cursor: pointer;
             transition: background 0.2s;
         }
         button:hover {
-            background: #1a2233;
+            background: #3766b1;
         }
         .draggable {
             position: absolute;
@@ -106,31 +139,95 @@
             content: 'La transcripción aparecerá aquí.';
             color: #888;
         }
+        @media (max-width: 900px) {
+            #video-draggable, #transcript-draggable, #full-transcript-draggable {
+                position: static !important;
+                width: 98vw !important;
+                min-width: 0 !important;
+                left: 0 !important;
+                top: 0 !important;
+                margin: 18px auto 0 auto !important;
+            }
+            #transcript-draggable, #full-transcript-draggable {
+                margin-top: 0 !important;
+            }
+        }
         @media (max-width: 600px) {
-            .header-row { flex-direction: column; gap: 6px; margin: 10px 0 0 10px; }
-            h2 { font-size: 1.1em; }
-            input[type=file] { width: 100%; }
+            .tabs { flex-direction: column; }
+            .tab { padding: 12px 10px; font-size: 1em; }
+            .form-section { flex-direction: column; gap: 8px; padding: 16px 8px; }
+            input[type=file], input[type=text] { width: 100%; }
         }
     </style>
 </head>
 <body>
-    <div class="header-row">
-        <h2>Transcribir Video Local</h2>
-        <form id="upload-form" class="form-section">
-            <input type="file" id="video-file" name="file" accept="video/mp4,video/avi,video/mov,video/mkv" required />
+    <div class="tabs">
+        <button class="tab active" id="tab-local">Video local</button>
+        <button class="tab" id="tab-online">Video online</button>
+    </div>
+    <div class="tab-content active" id="content-local">
+        <form id="upload-form-local" class="form-section" enctype="multipart/form-data">
+            <input type="file" id="video-file" name="file" accept="video/mp4,video/avi,video/mov,video/mkv" />
             <button type="submit">Transcribir</button>
         </form>
     </div>
-    <div id="video-draggable" class="draggable" style="top:80px;left:40px;width:380px;height:240px;">
-        <div class="draggable-header">Video</div>
-        <video id="video-player" controls tabindex="-1"></video>
+    <div class="tab-content" id="content-online">
+        <form id="upload-form-online" class="form-section">
+            <input type="text" id="youtube-url" name="youtube_url" placeholder="Pega un link de YouTube aquí" />
+            <button type="submit">Transcribir</button>
+        </form>
     </div>
-    <div id="transcript-draggable" class="draggable" style="top:80px;left:450px;width:380px;height:240px;">
-        <div class="draggable-header">Transcripción</div>
+    <div id="video-draggable" class="draggable" style="top:220px;left:40px;width:420px;height:260px;">
+        <div class="draggable-header">Video</div>
+        <video id="video-player" controls tabindex="-1" style="display:none;"></video>
+    </div>
+    <div id="transcript-draggable" class="draggable" style="top:220px;left:480px;width:420px;height:260px;">
+        <div class="draggable-header">Transcripción sincronizada</div>
         <div id="transcript"></div>
     </div>
+    <div id="full-transcript-draggable" class="draggable" style="top:500px;left:480px;width:420px;height:160px;z-index:11;">
+        <div class="draggable-header">Transcripción completa</div>
+        <div id="full-transcript" style="background:#181a1b;border-radius:0 0 8px 8px;padding:10px 12px;min-height:0;font-size:1em;white-space:pre-wrap;flex:1 1 0;overflow:auto;height:100%;box-sizing:border-box;"></div>
+    </div>
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script>
-        // Drag & drop para .draggable
+        // --- Tabs ---
+        const tabLocal = document.getElementById('tab-local');
+        const tabOnline = document.getElementById('tab-online');
+        const contentLocal = document.getElementById('content-local');
+        const contentOnline = document.getElementById('content-online');
+        tabLocal.onclick = () => {
+            tabLocal.classList.add('active');
+            tabOnline.classList.remove('active');
+            contentLocal.classList.add('active');
+            contentOnline.classList.remove('active');
+            // Reset forms and state
+            document.getElementById('upload-form-local').reset();
+            document.getElementById('video-player').src = '';
+            document.getElementById('video-player').style.display = 'none';
+            const iframe = document.getElementById('yt-iframe');
+            if (iframe) iframe.remove();
+            transcriptSegments = [];
+            transcriptDiv.textContent = '';
+            fullTranscriptDiv.textContent = '';
+        };
+        tabOnline.onclick = () => {
+            tabOnline.classList.add('active');
+            tabLocal.classList.remove('active');
+            contentOnline.classList.add('active');
+            contentLocal.classList.remove('active');
+            // Reset forms and state
+            document.getElementById('upload-form-online').reset();
+            document.getElementById('video-player').src = '';
+            document.getElementById('video-player').style.display = 'none';
+            const iframe = document.getElementById('yt-iframe');
+            if (iframe) iframe.remove();
+            transcriptSegments = [];
+            transcriptDiv.textContent = '';
+            fullTranscriptDiv.textContent = '';
+        };
+
+        // --- Drag & drop para .draggable ---
         function makeDraggable(el) {
             const header = el.querySelector('.draggable-header');
             let offsetX = 0, offsetY = 0, isDown = false;
@@ -152,16 +249,24 @@
         }
         makeDraggable(document.getElementById('video-draggable'));
         makeDraggable(document.getElementById('transcript-draggable'));
+        makeDraggable(document.getElementById('full-transcript-draggable'));
 
-        // Lógica de transcripción
-        const form = document.getElementById('upload-form');
+        // --- Lógica de transcripción ---
+        const formLocal = document.getElementById('upload-form-local');
+        const formOnline = document.getElementById('upload-form-online');
         const transcriptDiv = document.getElementById('transcript');
+        const fullTranscriptDiv = document.getElementById('full-transcript');
         const fileInput = document.getElementById('video-file');
         const videoPlayer = document.getElementById('video-player');
-
         let transcriptSegments = [];
         let transcriptDone = false;
+        let ytPlayer = null;
+        let ytPlayerReady = false;
+        let ytAutoplayTried = false;
+        let pendingYoutubeAutoplay = false;
+        let ytPlayerInterval = null;
 
+        // --- Video local ---
         fileInput.onchange = () => {
             const file = fileInput.files[0];
             if (file) {
@@ -172,30 +277,164 @@
                 transcriptDiv.textContent = '';
                 transcriptSegments = [];
                 transcriptDone = false;
+                // Eliminar iframe si existe
+                const iframe = document.getElementById('yt-iframe');
+                if (iframe) iframe.remove();
             } else {
                 videoPlayer.style.display = 'none';
                 videoPlayer.src = '';
             }
         };
 
-        videoPlayer.ontimeupdate = () => {
-            if (transcriptSegments.length === 0) return;
-            const current = videoPlayer.currentTime;
+        // --- Video online (YouTube) ---
+        document.getElementById('youtube-url').oninput = function() {
+            if (this.value.trim()) {
+                fileInput.value = '';
+                // Mostrar video de YouTube embebido
+                const ytId = this.value.match(/(?:v=|youtu.be\/)([\w-]{11})/);
+                if (ytId) {
+                    videoPlayer.style.display = 'none';
+                    let iframe = document.getElementById('yt-iframe');
+                    if (!iframe) {
+                        iframe = document.createElement('iframe');
+                        iframe.id = 'yt-iframe';
+                        iframe.width = '100%';
+                        iframe.height = '100%';
+                        iframe.style.border = 'none';
+                        iframe.allow = 'autoplay; encrypted-media';
+                        iframe.allowFullscreen = true;
+                        document.getElementById('video-draggable').appendChild(iframe);
+                    }
+                    iframe.src = `https://www.youtube.com/embed/${ytId[1]}?enablejsapi=1`;
+                    // Reset flags
+                    pendingYoutubeAutoplay = false;
+                    ytPlayerReady = false;
+                    ytAutoplayTried = false;
+                    transcriptSegments = [];
+                    // Inicializar YouTube API cuando el iframe esté listo
+                    window.onYouTubeIframeAPIReady = function() {
+                        ytPlayer = new YT.Player('yt-iframe', {
+                            events: {
+                                'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange
+                            }
+                        });
+                    };
+                    if (window.YT && window.YT.Player) {
+                        window.onYouTubeIframeAPIReady();
+                    }
+                }
+            } else {
+                const iframe = document.getElementById('yt-iframe');
+                if (iframe) iframe.remove();
+                videoPlayer.style.display = 'block';
+                if (ytPlayerInterval) clearInterval(ytPlayerInterval);
+            }
+        };
+
+        function onPlayerReady(event) {
+            ytPlayerReady = true;
+            if (ytPlayerInterval) clearInterval(ytPlayerInterval);
+            ytPlayerInterval = setInterval(updateTranscriptSync, 300);
+            if ((pendingYoutubeAutoplay || (!ytAutoplayTried && transcriptSegments.length > 0)) && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+                tryYoutubeAutoplay();
+            }
+        }
+        function onPlayerStateChange(event) {
+            updateTranscriptSync();
+            if (transcriptSegments.length > 0 && ytPlayer && typeof ytPlayer.playVideo === 'function') {
+                setTimeout(tryYoutubeAutoplay, 100);
+            }
+        }
+        function tryYoutubeAutoplay() {
+            if (
+                ytPlayer && typeof ytPlayer.playVideo === 'function' &&
+                transcriptSegments.length > 0 &&
+                (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== 1)
+            ) {
+                ytPlayer.playVideo();
+                ytAutoplayTried = true;
+                pendingYoutubeAutoplay = false;
+                setTimeout(() => {
+                    if (ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== 1) {
+                        showAutoplayMessage('El navegador bloqueó el autoplay. Haz clic para reproducir el video.', true);
+                    } else {
+                        let el = document.getElementById('autoplay-msg');
+                        if (el) el.remove();
+                    }
+                }, 1200);
+            }
+        }
+        function showAutoplayMessage(msg, showButton) {
+            let el = document.getElementById('autoplay-msg');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'autoplay-msg';
+                el.style.position = 'fixed';
+                el.style.top = '20px';
+                el.style.right = '20px';
+                el.style.background = '#222e50';
+                el.style.color = '#fff';
+                el.style.padding = '16px 24px';
+                el.style.borderRadius = '8px';
+                el.style.zIndex = 1000;
+                el.style.boxShadow = '0 2px 12px #0008';
+                document.body.appendChild(el);
+            }
+            el.innerHTML = msg;
+            if (showButton) {
+                const btn = document.createElement('button');
+                btn.textContent = 'Reproducir video';
+                btn.style.marginLeft = '18px';
+                btn.onclick = function() {
+                    if (ytPlayer && typeof ytPlayer.playVideo === 'function') {
+                        ytPlayer.playVideo();
+                        el.remove();
+                    }
+                };
+                el.appendChild(btn);
+            }
+        }
+
+        // --- Sincronización de transcripción ---
+        function updateTranscriptSync() {
+            let current = 0;
+            let isPaused = false;
+            if (videoPlayer.style.display !== 'none') {
+                current = videoPlayer.currentTime;
+                isPaused = videoPlayer.paused;
+            } else if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                current = ytPlayer.getCurrentTime();
+                isPaused = ytPlayer.getPlayerState && ytPlayer.getPlayerState() !== 1;
+            }
             let text = '';
-            for (const seg of transcriptSegments) {
-                if (current >= seg.start) {
+            if (isPaused || current === 0) {
+                for (const seg of transcriptSegments) {
                     text += seg.full + '\n';
+                }
+            } else {
+                for (const seg of transcriptSegments) {
+                    if (current >= seg.start) {
+                        text += seg.full + '\n';
+                    }
                 }
             }
             if (transcriptDone) text += '\n[Transcripción finalizada]';
             transcriptDiv.textContent = text;
-        };
+        }
+        videoPlayer.ontimeupdate = () => updateTranscriptSync(false);
 
-        form.onsubmit = async (e) => {
+        // --- Submits ---
+        formLocal.onsubmit = async (e) => {
             e.preventDefault();
             transcriptDiv.textContent = 'Procesando...';
+            fullTranscriptDiv.textContent = '';
             transcriptSegments = [];
             transcriptDone = false;
+            if (!fileInput.files[0]) {
+                transcriptDiv.textContent = 'Selecciona un archivo de video.';
+                return;
+            }
             const formData = new FormData();
             formData.append('file', fileInput.files[0]);
             const response = await fetch('/process_local_stream', {
@@ -203,6 +442,29 @@
                 body: formData
             });
             transcriptDiv.textContent = '';
+            await handleTranscriptStream(response, false);
+        };
+        formOnline.onsubmit = async (e) => {
+            e.preventDefault();
+            transcriptDiv.textContent = 'Procesando...';
+            fullTranscriptDiv.textContent = '';
+            transcriptSegments = [];
+            transcriptDone = false;
+            const youtubeUrl = document.getElementById('youtube-url').value.trim();
+            if (!youtubeUrl) {
+                transcriptDiv.textContent = 'Ingresa un link de YouTube.';
+                return;
+            }
+            const formData = new FormData();
+            formData.append('youtube_url', youtubeUrl);
+            const response = await fetch('/process_youtube_stream', {
+                method: 'POST',
+                body: formData
+            });
+            transcriptDiv.textContent = '';
+            await handleTranscriptStream(response, true);
+        };
+        async function handleTranscriptStream(response, isYoutube) {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -216,12 +478,37 @@
                     if (line.startsWith('data: ')) {
                         const data = JSON.parse(line.slice(6));
                         if (data.segment) {
-                            const match = data.segment.match(/^\[(\d{2}):(\d{2}) - (\d{2}):(\d{2})\]/);
+                            if (isYoutube && transcriptSegments.length === 0) {
+                                showAutoplayMessage('Haz clic para reproducir el video de YouTube', true);
+                            }
+                            const match = data.segment.match(/^[\[](?<m1>\d{2}):(?<s1>\d{2}) - (\d{2}):(\d{2})[\]]/);
                             let startSec = 0;
                             if (match) {
                                 startSec = parseInt(match[1],10)*60 + parseInt(match[2],10);
                             }
                             transcriptSegments.push({ start: startSec, full: data.segment });
+                            updateTranscriptSync(true);
+                            if (isYoutube) {
+                                if (ytPlayer && typeof ytPlayer.playVideo === 'function' && ytPlayerReady) {
+                                    tryYoutubeAutoplay();
+                                } else {
+                                    pendingYoutubeAutoplay = true;
+                                }
+                            }
+                        }
+                        if (data.full_transcript) {
+                            fullTranscriptDiv.textContent = data.full_transcript;
+                            if (transcriptSegments.length === 0 && data.full_transcript) {
+                                const lines = data.full_transcript.split('\n');
+                                transcriptSegments = lines.map(line => {
+                                    const match = line.match(/^\[(\d{2}):(\d{2}) - (\d{2}):(\d{2})\]/);
+                                    let startSec = 0;
+                                    if (match) {
+                                        startSec = parseInt(match[1],10)*60 + parseInt(match[2],10);
+                                    }
+                                    return { start: startSec, full: line };
+                                });
+                            }
                         }
                         if (data.error) {
                             transcriptDiv.textContent += '\n' + data.error;
@@ -232,7 +519,7 @@
                     }
                 }
             }
-        };
+        }
     </script>
 </body>
 </html>

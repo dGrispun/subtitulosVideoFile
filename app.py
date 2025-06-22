@@ -6,6 +6,7 @@ import whisper
 import math
 import soundfile as sf
 import numpy as np
+import yt_dlp
 
 app = Flask(__name__)
 streaming = False
@@ -57,6 +58,8 @@ def process_local():
 def process_local_stream():
     import json
     global streaming
+    # Limpiar archivo de texto antes de iniciar la transcripción (para ambos endpoints)
+    open('texto.txt', 'w', encoding='utf-8').close()
     # Accede a request.files y guarda el archivo ANTES del generador
     if streaming:
         return Response(f"data: {json.dumps({'error': 'Ya se está procesando un video'})}\n\n", mimetype='text/event-stream')
@@ -73,35 +76,116 @@ def process_local_stream():
     time.sleep(0.1)
     audio_path = convert_to_audio(temp_file_path)
     chunk_duration = 15  # segundos por chunk
+    # Limpiar archivo de texto antes de iniciar la transcripción
+    open('texto.txt', 'w', encoding='utf-8').close()
     def generate():
+        import sys
         try:
             model = whisper.load_model('base')
-            # Leer el audio completo
             audio, sr = sf.read(audio_path)
             total_duration = len(audio) / sr
             num_chunks = math.ceil(total_duration / chunk_duration)
-            for i in range(num_chunks):
-                start_sec = i * chunk_duration
-                end_sec = min((i + 1) * chunk_duration, total_duration)
-                start_sample = int(start_sec * sr)
-                end_sample = int(end_sec * sr)
-                chunk_audio = audio[start_sample:end_sample]
-                chunk_path = audio_path.replace('.wav', f'_chunk{i}.wav')
-                sf.write(chunk_path, chunk_audio, sr)
-                chunk_result = model.transcribe(chunk_path, language='es', word_timestamps=True)
-                os.remove(chunk_path)
-                for segment in chunk_result.get('segments', []):
-                    start = segment['start'] + start_sec
-                    end = segment['end'] + start_sec
-                    text = segment['text'].strip()
-                    ts = f"[{int(start//60):02d}:{int(start%60):02d} - {int(end//60):02d}:{int(end%60):02d}]"
-                    yield f"data: {json.dumps({'segment': f'{ts} {text}'})}\n\n"
+            full_transcript = ''
+            with open('texto.txt', 'a', encoding='utf-8') as ftxt:
+                for i in range(num_chunks):
+                    start_sec = i * chunk_duration
+                    end_sec = min((i + 1) * chunk_duration, total_duration)
+                    start_sample = int(start_sec * sr)
+                    end_sample = int(end_sec * sr)
+                    chunk_audio = audio[start_sample:end_sample]
+                    chunk_path = audio_path.replace('.wav', f'_chunk{i}.wav')
+                    sf.write(chunk_path, chunk_audio, sr)
+                    chunk_result = model.transcribe(chunk_path, language='es', word_timestamps=True)
+                    os.remove(chunk_path)
+                    for segment in chunk_result.get('segments', []):
+                        start = segment['start'] + start_sec
+                        end = segment['end'] + start_sec
+                        text = segment['text'].strip()
+                        ts = f"[{int(start//60):02d}:{int(start%60):02d} - {int(end//60):02d}:{int(end%60):02d}]"
+                        segment_text = f'{ts} {text}'
+                        full_transcript += segment_text + '\n'
+                        ftxt.write(segment_text + '\n')
+                        ftxt.flush()
+                        os.fsync(ftxt.fileno())
+                        yield f"data: {{\"segment\": \"{segment_text}\"}}\n\n"
+                        sys.stdout.flush()
             os.remove(audio_path)
             os.remove(temp_file_path)
-            yield f"data: {json.dumps({'done': True})}\n\n"
+            # Enviar la transcripción completa al final
+            yield f"data: {{\"full_transcript\": {json.dumps(full_transcript.strip())}}}\n\n"
+            yield f"data: {{\"done\": true}}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'error': f'Error al procesar video local: {str(e)}'})}\n\n"
+            yield f"data: {{\"error\": \"Error al procesar video local: {str(e)}\"}}\n\n"
     return Response(generate(), mimetype='text/event-stream')
+
+@app.route('/process_youtube_stream', methods=['POST'])
+def process_youtube_stream():
+    import json
+    youtube_url = request.form.get('youtube_url')
+    if not youtube_url:
+        return Response(f"data: {{'error': 'No se proporcionó URL de YouTube'}}\n\n", mimetype='text/event-stream')
+    # Limpiar archivo de texto antes de iniciar la transcripción (para ambos endpoints)
+    open('texto.txt', 'w', encoding='utf-8').close()
+    try:
+        # Descargar video de YouTube
+        temp_dir = tempfile.mkdtemp()
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': os.path.join(temp_dir, '%(id)s.%(ext)s'),
+            'merge_output_format': 'mp4',
+            'quiet': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(youtube_url, download=True)
+            filename = ydl.prepare_filename(info)
+            if not filename.endswith('.mp4'):
+                filename = filename.rsplit('.', 1)[0] + '.mp4'
+        time.sleep(0.1)
+        audio_path = convert_to_audio(filename)
+        chunk_duration = 15
+        # Limpiar archivo de texto antes de iniciar la transcripción
+        open('texto.txt', 'w', encoding='utf-8').close()
+        def generate():
+            import sys
+            try:
+                model = whisper.load_model('base')
+                audio, sr = sf.read(audio_path)
+                total_duration = len(audio) / sr
+                num_chunks = math.ceil(total_duration / chunk_duration)
+                full_transcript = ''
+                with open('texto.txt', 'a', encoding='utf-8') as ftxt:
+                    for i in range(num_chunks):
+                        start_sec = i * chunk_duration
+                        end_sec = min((i + 1) * chunk_duration, total_duration)
+                        start_sample = int(start_sec * sr)
+                        end_sample = int(end_sec * sr)
+                        chunk_audio = audio[start_sample:end_sample]
+                        chunk_path = audio_path.replace('.wav', f'_chunk{i}.wav')
+                        sf.write(chunk_path, chunk_audio, sr)
+                        chunk_result = model.transcribe(chunk_path, language='es', word_timestamps=True)
+                        os.remove(chunk_path)
+                        for segment in chunk_result.get('segments', []):
+                            start = segment['start'] + start_sec
+                            end = segment['end'] + start_sec
+                            text = segment['text'].strip()
+                            ts = f"[{int(start//60):02d}:{int(start%60):02d} - {int(end//60):02d}:{int(end%60):02d}]"
+                            segment_text = f'{ts} {text}'
+                            full_transcript += segment_text + '\n'
+                            ftxt.write(segment_text + '\n')
+                            ftxt.flush()
+                            os.fsync(ftxt.fileno())
+                            yield f"data: {{\"segment\": \"{segment_text}\"}}\n\n"
+                            sys.stdout.flush()
+                os.remove(audio_path)
+                os.remove(filename)
+                # Enviar la transcripción completa al final
+                yield f"data: {{\"full_transcript\": {json.dumps(full_transcript.strip())}}}\n\n"
+                yield f"data: {{\"done\": true}}\n\n"
+            except Exception as e:
+                yield f"data: {{\"error\": \"Error al procesar video de YouTube: {str(e)}\"}}\n\n"
+        return Response(generate(), mimetype='text/event-stream')
+    except Exception as e:
+        return Response(f"data: {{'error': 'Error al descargar video de YouTube: {str(e)}'}}\n\n", mimetype='text/event-stream')
 
 @app.route('/')
 def index():
